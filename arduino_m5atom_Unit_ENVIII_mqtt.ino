@@ -1,0 +1,43 @@
+/*
+*******************************************************************************
+* Copyright (c) 2022 by M5Stack
+*                  Equipped with Atom-Lite/Matrix sample source code
+* Visit for more information: https://docs.m5stack.com/en/unit/envIII
+*
+* Product: ENVIII_SHT30_QMP6988.
+* Date: 2022/7/20
+*******************************************************************************
+  Please connect to Port,Read temperature, humidity and atmospheric pressure and
+  display them on the display Serial
+
+*/
+#include <M5Atom.h>
+#include "M5_ENV.h"
+
+SHT3X sht30;
+QMP6988 qmp6988;
+
+float tmp      = 0.0;
+float hum      = 0.0;
+float pressure = 0.0;
+
+void setup() {
+    M5.begin();          // Init M5Atom.  初始化M5Atom
+    Wire.begin(26, 32);  // Initialize pin 26,32.  初始化26,32引脚
+    qmp6988.init();
+    Serial.println(F("ENVIII Unit(SHT30 and QMP6988) test"));
+}
+
+void loop() {
+    pressure = qmp6988.calcPressure();
+    if (sht30.get() == 0) {  // Obtain the data of shT30.  
+        tmp = sht30.cTemp;   // Store the temperature obtained from shT30.
+        hum = sht30.humidity;  // Store the humidity obtained from the SHT30.
+    } else {
+        tmp = 0, hum = 0;
+    }
+    Serial.printf(
+        "Temp: %2.1f  \r\nHumi: %2.0f%%  \r\nPressure:%2.0fPa\r\n---\n", tmp,
+        hum, pressure);
+    delay(2000);
+}
