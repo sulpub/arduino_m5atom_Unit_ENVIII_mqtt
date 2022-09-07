@@ -2,7 +2,7 @@
   Software to send data (temperature, humidity and pressure) over MQTT
 
   hardware :
-  - M5stack atom lite : http://docs.m5stack.com/en/core/atom_lite
+  - M5stack atom lite :
   - Environment sensor module ENV III : https://docs.m5stack.com/en/unit/envIII
 
   software source :
@@ -26,7 +26,6 @@
 #include <WiFiMulti.h>
 
 #include <PubSubClient.h>
-#include <RCSwitch.h>
 
 #include <Arduino_JSON.h>
 
@@ -96,8 +95,8 @@ String clientPassMqtt         = "A MODIFIER - mot de passe MQTT";
 #define I2C_SCL_PIN  32
 
 //timing
-#define PERIOD_SEND_DATA  2000    //2 secondes
-#define PERIOD_SEND_STATS 20000   //20 secondes
+#define PERIOD_SEND_DATA  10000    //10 secondes
+#define PERIOD_SEND_STATS 60000   //60 secondes
 
 //debug
 #define DEBUG_UART 1
@@ -123,6 +122,7 @@ uint8_t DisBuff[2 + 5 * 5 * 3];
 
 unsigned long ulong_time_now = 0;
 unsigned long ulong_time_meas_cycle = 0;
+unsigned long ulong_time_uart_cycle = 0;
 unsigned long ulong_diff_time_meas_cycle = 0;
 unsigned long ulong_time_send_meas_cycle = 0;
 
@@ -190,7 +190,7 @@ void send_status_mqtt(unsigned long ulong_interval);
 void createJsonMessage(void);
 
 void readEnvSensors(void);
-void sendMeasSensor(void);
+void sendMeasSensor(unsigned long ulong_interval);
 
 void callback_mqtt(char* topic, byte* payload, unsigned int length);
 
@@ -325,7 +325,7 @@ void callback_mqtt(char* topic, byte* payload, unsigned int length)
       Serial.print("myObject[\"period_meas\"] = ");
       Serial.println(myObject["period_meas"]);
       periodSendData = (int)myObject["period_meas"];
-      periodSendData= 1000*periodSendData;
+      periodSendData = 1000 * periodSendData;
     }
 
     if (myObject.hasOwnProperty("period_stat"))
@@ -333,7 +333,7 @@ void callback_mqtt(char* topic, byte* payload, unsigned int length)
       Serial.print("myObject[\"period_stat\"] = ");
       Serial.println((int) myObject["period_stat"]);
       periodSendStat = (int) myObject["period_stat"];
-      periodSendStat= 1000*periodSendStat;
+      periodSendStat = 1000 * periodSendStat;
     }
 
   }
@@ -580,7 +580,7 @@ void loop() {
   readEnvSensors();
 
   //send sensor data via MQTT
-  sendMeasSensor();
+  sendMeasSensor(periodSendData);
 
   //envoi status MQTT toute les 20 secondes (en vie)
   send_status_mqtt(periodSendStat);
@@ -680,9 +680,9 @@ void readEnvSensors(void)
 */
 void void_fct_info_uart(unsigned long ulong_interval)
 {
-  if ( (ulong_time_now - ulong_time_meas_cycle) >= ulong_interval )
+  if ( (ulong_time_now - ulong_time_uart_cycle) >= ulong_interval )
   {
-    ulong_time_meas_cycle = ulong_time_now;
+    ulong_time_uart_cycle = ulong_time_now;
 
     //Measure internal temperature esp32
     intTempCpu = ((temprature_sens_read() - 32) / 1.8);
@@ -695,6 +695,14 @@ void void_fct_info_uart(unsigned long ulong_interval)
 
     //Humidity sensor
     Serial.print(hum_sensor);
+    Serial.print(",");
+
+    //period data
+    Serial.print(periodSendData);
+    Serial.print(",");
+
+    //period stat
+    Serial.print(periodSendStat);
     Serial.print(",");
 
     //Pressure sensor
@@ -877,14 +885,14 @@ void createJsonMessage(void)
   /____  >\___  >___|  /\____ \____|__  /\___  >____  /____  >_______  /\___  >___|  /____  >____/|__|
        \/     \/     \/      \/       \/     \/     \/     \/        \/     \/     \/     \/
 */
-void sendMeasSensor(void)
+void sendMeasSensor(unsigned long ulong_interval)
 {
-  if ( (ulong_time_now - ulong_time_meas_cycle) >= periodSendData )
+  if ( (ulong_time_now - ulong_time_meas_cycle) >= ulong_interval )
   {
     ulong_time_meas_cycle = ulong_time_now;
 
     //envoi MQTT  tmp_sensor hum_sensor  pressure_sensor
-    sprintf (msg, "{\"Temp\":%d,\"Humidity\":%d,\"Pressure\":%d}", tmp_sensor, hum_sensor, pressure_sensor);
+    sprintf (msg, "{\"Temp\":%.2f,\"Humidity\":%.2f,\"Pressure\":%.2f}", tmp_sensor, hum_sensor, pressure_sensor);
     if (DEBUG_UART == 1)
     {
       Serial.print("Publish message: ");
